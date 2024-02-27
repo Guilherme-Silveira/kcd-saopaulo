@@ -1,0 +1,124 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kibana
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-body-size: "4g"
+    cert-manager.io/issuer: "elastic-ca"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - kibana.silveira.com
+    secretName: elastic-cert
+  rules:
+    - host: kibana.silveira.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vector-kb-http
+                port:
+                  number: 5601
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: elasticsearch
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-body-size: "4g"
+    cert-manager.io/issuer: "elastic-ca"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - elasticsearch.silveira.com
+    secretName: elastic-cert
+  rules:
+    - host: elasticsearch.silveira.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vector-es-http
+                port:
+                  number: 9200
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jupyterlab
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "4g"
+    cert-manager.io/issuer: "elastic-ca"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - jupyter.silveira.com
+    secretName: elastic-cert
+  rules:
+    - host: jupyter.silveira.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jupyterlab
+                port:
+                  number: 8888
+--- 
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  annotations:
+    cert-manager.io/issuer: "elastic-ca"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - app.silveira.com
+    secretName: elastic-cert
+  rules:
+    - host: app.silveira.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8501
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: locust
+  annotations:
+    cert-manager.io/issuer: "elastic-ca"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+      - locust.silveira.com
+    secretName: elastic-cert
+  rules:
+    - host: locust.silveira.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: locust-master
+                port:
+                  number: 8089

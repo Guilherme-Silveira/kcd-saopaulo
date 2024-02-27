@@ -1,0 +1,25 @@
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: vector
+spec:
+  version: 8.11.4
+  count: 1
+  elasticsearchRef:
+    name: vector
+  enterpriseSearchRef:
+    name: enterprise-search-vector
+  podTemplate:
+    spec:
+      containers:
+      - name: kibana
+        env:
+          - name: NODE_OPTIONS
+            value: "--max-old-space-size=2048"
+        resources:
+          requests:
+            memory: 4Gi
+            cpu: 2000m
+          limits:
+            memory: 4Gi
+            cpu: 2000m

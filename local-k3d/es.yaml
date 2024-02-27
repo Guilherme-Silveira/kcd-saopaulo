@@ -1,0 +1,88 @@
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: vector
+spec:
+  version: 8.11.4
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.roles: [ data_hot, data_content, ingest, master ]
+      node.store.allow_mmap: false
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 15Gi
+    podTemplate:
+      spec:
+        nodeSelector:
+          type: data
+        containers:
+        - name: elasticsearch
+          env:
+          - name: READINESS_PROBE_TIMEOUT
+            value: "10"
+          - name: ES_JAVA_OPTS
+            value: -Xms2g -Xmx2g
+          resources:
+            requests:
+              memory: 4Gi
+            limits:
+              memory: 4Gi
+          readinessProbe:
+            exec:
+              command:
+              - bash
+              - -c
+              - /mnt/elastic-internal/scripts/readiness-probe-script.sh
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 12
+            successThreshold: 1
+            timeoutSeconds: 12
+  - name: ml
+    count: 1
+    config:
+      node.roles: [ ml ]
+      node.store.allow_mmap: false
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+    podTemplate:
+      spec:
+        nodeSelector:
+          type: ml
+        containers:
+        - name: elasticsearch
+          env:
+          - name: READINESS_PROBE_TIMEOUT
+            value: "10"
+          resources:
+            requests:
+              memory: 2Gi
+            limits:
+              memory: 3Gi
+          readinessProbe:
+            exec:
+              command:
+              - bash
+              - -c
+              - /mnt/elastic-internal/scripts/readiness-probe-script.sh
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 12
+            successThreshold: 1
+            timeoutSeconds: 12

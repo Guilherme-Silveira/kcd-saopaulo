@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    name: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: app
+  template:
+    metadata:
+      labels:
+        name: app
+    spec:
+      containers:
+        - name: app
+          image: guisilveira/elastic-docs-gpt:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ES_USER
+              value: "elastic"
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vector-es-elastic-user
+                  key: elastic
+            - name: ES_URI
+              value: "https://vector-es-http:9200"
+            - name: LLM_API
+              valueFrom:
+                secretKeyRef:
+                  name: openai
+                  key: api
+          ports:
+          - containerPort: 8501
+          volumeMounts:
+            - name: es-http-ca
+              mountPath: /tmp/ca.crt
+              subPath: tls.crt
+          resources:
+            requests:
+              memory: 500Mi
+              cpu: 250m
+      restartPolicy: Always
+      volumes:
+      - name: es-http-ca
+        secret:
+          secretName: vector-es-http-ca-internal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  labels:
+    name: app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8501
+      targetPort: 8501
+      protocol: TCP
+      name: http
+  selector:
+    name: app

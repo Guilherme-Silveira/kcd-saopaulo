@@ -1,0 +1,21 @@
+apiVersion: enterprisesearch.k8s.elastic.co/v1
+kind: EnterpriseSearch
+metadata:
+  name: enterprise-search-vector
+spec:
+  version: 8.11.4
+  count: 1
+  elasticsearchRef:
+    name: vector
+  podTemplate:
+    spec:
+      containers:
+      - name: enterprise-search
+        resources:
+          requests:
+            memory: 2Gi
+          limits:
+            memory: 2Gi
+        env:
+        - name: JAVA_OPTS
+          value: -Xms1024m -Xmx1024m

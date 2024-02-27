@@ -1,0 +1,218 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scripts-cm
+data:
+  locustfile.py: |
+    import os
+    from locust import HttpUser, task, between
+    from requests.auth import HTTPBasicAuth
+
+    class ElasticsearchUser(HttpUser):
+        wait_time = between(1, 2)  # Time between tasks for each user
+
+        es_pass = os.environ['ES_PASSWORD']
+        es_user = os.environ['ES_USER']
+
+        @task
+        def perform_query(self):
+            query = {
+                "query": {
+                    "bool": {
+                    "must": [
+                        {
+                        "match": {
+                            "title": {
+                            "query": "How to configure an Ingress on Kubernetes",
+                            "boost": 1
+                            }
+                        }
+                        }
+                    ],
+                    "filter": [
+                        {
+                        "exists": {
+                            "field": "ml.inference.title-vector.predicted_value"
+                        }
+                        }
+                    ]
+                    }
+                },
+                "knn": {
+                    "field": "ml.inference.title-vector.predicted_value",
+                    "k": 1,
+                    "num_candidates": 20,
+                    "query_vector_builder": {
+                    "text_embedding": {
+                        "model_id": "sentence-transformers__all-distilroberta-v1",
+                        "model_text": "How to configure an Ingress on Kubernetes"
+                    }
+                    },
+                    "boost": 24
+                },
+                "fields": [
+                    "title",
+                    "body_content",
+                    "url"
+                ],
+                "_source": [],
+                "size": 1
+                }
+            index = 'search-elastic-docs'
+            headers = {"Content-Type": "application/json"}
+            auth = HTTPBasicAuth(self.es_user, self.es_pass)
+            custom_ca='/tmp/ca.crt'
+            self.client.post(f"/{index}/_search", json=query, headers=headers, auth=auth, verify=custom_ca)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  labels:
+    role: locust-master
+    app: locust-master
+  name: locust-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: locust-master
+      app: locust-master
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        role: locust-master
+        app: locust-master
+    spec:
+      containers:
+      - image: guisilveira/locust:elastic
+        imagePullPolicy: Always
+        name: master
+        args: ["--master"]
+        env:
+          - name: ES_USER
+            value: "elastic"
+          - name: ES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: vector-es-elastic-user
+                key: elastic
+          - name: ES_URI
+            value: "https://vector-es-http:9200"
+        volumeMounts:
+          - mountPath: /home/locust
+            name: locust-scripts
+          - name: es-http-ca
+            mountPath: /tmp/ca.crt
+            subPath: tls.crt
+        ports:
+        - containerPort: 5557
+          name: comm
+        - containerPort: 5558
+          name: comm-plus-1
+        - containerPort: 8089
+          name: web-ui
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: locust-scripts
+        configMap:
+          name: scripts-cm
+      - name: es-http-ca
+        secret:
+          secretName: vector-es-http-ca-internal
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    role: locust-master
+  name: locust-master
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5557
+    name: communication
+  - port: 5558
+    name: communication-plus-1
+  - port: 8089
+    targetPort: 8089
+    name: web-ui
+  selector:
+    role: locust-master
+    app: locust-master
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+  labels:
+    role: locust-worker
+    app: locust-worker
+  name: locust-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      role: locust-worker
+      app: locust-worker
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        role: locust-worker
+        app: locust-worker
+    spec:
+      containers:
+      - image: guisilveira/locust:elastic
+        imagePullPolicy: Always
+        name: worker
+        args: ["--worker", "--master-host=locust-master"]
+        env:
+          - name: ES_USER
+            value: "elastic"
+          - name: ES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: vector-es-elastic-user
+                key: elastic
+          - name: ES_URI
+            value: "https://vector-es-http:9200"
+        volumeMounts:
+          - mountPath: /home/locust
+            name: locust-scripts
+          - name: es-http-ca
+            mountPath: /tmp/ca.crt
+            subPath: tls.crt
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: locust-scripts
+        configMap:
+          name: scripts-cm
+      - name: es-http-ca
+        secret:
+          secretName: vector-es-http-ca-internal
