@@ -40,6 +40,9 @@ O deploy do projeto usando Terraform cria um cluster Kubernetes no Google Cloud 
 - NGINX Ingress Controler para gerenciamento de acessos externos aos serviços do cluster Kubernetes
 - Cert Manager para criação e gerenciamento automático de certificados SSL utilizando o Let's Encrypt como Autoridade Certificadora
 
+![KCD drawio](https://github.com/Guilherme-Silveira/kcd-saopaulo/assets/40548889/5403761c-3cbd-40f9-92a4-bb8699b9d6e4)
+
+
 ### Step-by-Step
 
 #### Configurar credenciais
